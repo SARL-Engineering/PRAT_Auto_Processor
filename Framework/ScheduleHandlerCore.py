@@ -12,7 +12,7 @@ __maintainer__ = "Corwin Perren"
 __email__ = "caperren@caperren.com"
 __status__ = "Development"
 
-# This file is part of "PRAT Transfer Utility".
+# This file is part of "PRAT Auto Processor".
 #
 # "Pick And Plate" is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ __status__ = "Development"
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with "PRAT Transfer Utility".  If not, see <http://www.gnu.org/licenses/>.
+# along with "PRAT Auto Processor".  If not, see <http://www.gnu.org/licenses/>.
 
 #####################################
 # Imports
@@ -36,85 +36,106 @@ import os
 import logging
 from distutils.dir_util import copy_tree
 import time
+import matlab.engine
 
 # Custom imports
 
 #####################################
 # Global Variables
 #####################################
+midnight_qtime_string = QtCore.QTime.fromString("12:00:00 AM", "h:mm:ss AP").toString("h:mm:ss AP")
 
+PROCESS_TASK = 0
+TRANSFER_TASK = 1
 
 #####################################
 # QueueProcessor Class Definition
 #####################################
 class QueueProcessor(QtCore.QThread):
-
     task_done = QtCore.pyqtSignal()
 
-    def __init__(self, master, task):
+    def __init__(self, master, task_type, local_vid_path, local_csv_path, vid_transfer_path, csv_transfer_path, age):
         QtCore.QThread.__init__(self)
 
         self.master = master
 
+        # ########## Worker thread variables ##########
+        self.task_type = task_type
+        self.local_vid_path = str(local_vid_path)
+        self.local_csv_path = str(local_csv_path)
+        self.vid_transfer_path = str(vid_transfer_path)
+        self.csv_transfer_path = str(csv_transfer_path)
+        self.cleanup_age = int(age)
+
         # ########## Get the instances of the loggers ##########
-        self.transfer_logger = logging.getLogger("TRANSFER_PRAT")
-        self.cleanup_logger = logging.getLogger("CLEANUP_PRAT")
+        self.logger = logging.getLogger("PRAT Auto Processor")
 
-        self.task = list(task)
-
-        self.task_done.connect(self.master.on_task_done_slot)
+        if self.task_type == PROCESS_TASK:
+            self.task_done.connect(self.master.on_processing_done_slot)
+        elif self.task_type == TRANSFER_TASK:
+            self.task_done.connect(self.master.on_transfer_done_slot)
 
         self.start()
 
     def run(self):
-        a = self.task[0].replace("\\", "/")
-        b = self.task[1].replace("\\", "/")
-        a_to_b = self.task[2]
-        clean_a = self.task[3]
-        c_a_if_in_b = self.task[4]
-        c_b_and_a = self.task[5]
-        cleanup_age = self.task[6]
+        if self.task_type == PROCESS_TASK:
+            if os.path.isdir(self.local_vid_path):
+                if not os.path.isdir(self.local_csv_path):
+                    os.makedirs(self.local_csv_path)
 
-        is_error = False
+                count = self.file_count(self.local_vid_path)
+                original_out_csv_count = self.file_count(self.local_csv_path)
 
-        if (a_to_b == "True") and not is_error:
-            if os.path.isdir(a) and os.path.isdir(b):
-                try:
-                    self.transfer_logger.info("Transferring " + a + " to " + b)
+                if count > 0:
+                    self.logger.info("Attempting to process " + str(count) + " SEQ files. This will take some time.")
 
                     start_time = time.clock()
-                    copy_tree(a, b)
+                    matlab_engine = matlab.engine.start_matlab()
+                    matlab_engine.PRAT_Processor(self.local_vid_path, self.local_csv_path)
                     stop_time = time.clock()
-                    diff_time = str(stop_time-start_time)
 
-                    self.transfer_logger.info("Transferred " + a + " to " + b + " in " + diff_time + " seconds.\n")
+                    diff_time_str = str((stop_time-start_time)/60.0)
 
-                except Exception, e:
-                    self.transfer_logger.info("Directories exist, but file copy failed! Please check permissions.\n" +
-                                              str(e) + "\n")
+                    self.logger.info("Processing completed in " + diff_time_str + " minutes.")
+
+                    new_out_csv_count = self.file_count(self.local_csv_path)
+                    csv_diff = new_out_csv_count - original_out_csv_count
+
+                    if csv_diff == count:
+                        self.logger.info("All SEQ files processed successfully!")
+                    else:
+                        self.logger.log("SEQ files not processed successfully!" +
+                                        " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
+                                        " CSV files were created. Please check your SEQ files!")
+                else:
+                    self.logger.info("Attempted to process SEQ files, but none exist.")
+
             else:
-                is_error = True
-                self.transfer_logger.info("One or both of the specified paths does not exist. File copy failed.\n"
-                                          + "Please check paths:\n" + a + " and " + b + ".\n")
+                self.logger.info("Local video path does not exist! Processing failed!" +
+                                 " Please check that \"" + self.local_vid_path + "\" exists.")
 
-        if (clean_a == "True") and (c_a_if_in_b == "False") and not is_error:
-            if os.path.isdir(a):
-                is_error = self.clean_path(a, "", "False", cleanup_age)
-            else:
-                is_error = True
-                self.cleanup_logger.info("The specified path does not exist. Folder cleanup failed.\n" +
-                                         "Please check path: " + a)
-
-        elif (clean_a == "True") and not is_error:
-            if os.path.isdir(a) and os.path.isdir(b):
-                self.clean_path(a, b, c_a_if_in_b, cleanup_age)
-                if c_b_and_a == "True":
-                    self.clean_path(b, b, "False", cleanup_age)
-            else:
-                self.cleanup_logger.info("One or both of the specified paths does not exist. Folder cleanup failed.\n" +
-                                         "Please check paths:\n" + a + " and " + b + ".\n")
+        elif self.task_type == TRANSFER_TASK:
+            print self.local_vid_path
+            print self.local_csv_path
+            print self.vid_transfer_path
+            print self.csv_transfer_path
+            print self.cleanup_age
 
         self.task_done.emit()
+
+    def file_count(self, path):
+        count = 0
+
+        for file_or_folder in os.listdir(path):
+                full_path = os.path.join(path, file_or_folder)
+
+                try:
+                    if os.path.isfile(full_path):
+                        count += 1
+                except:
+                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+        return count
+
 
     def clean_path(self, a, b, check_b_before_clean, age):
         for file_folder in os.listdir(a):
@@ -162,11 +183,11 @@ class ScheduleHandler(QtCore.QThread):
         self.not_abort_flag = True
 
         # ########## Class Variables ##########
-        # Form of {{a, b, a_to_b, clean_a, c_a_if_in_b, c_b_and_a, cleanup_age},
-        # {a, b, a_to_b, clean_a, c_a_if_in_b, c_b_and_a, cleanup_age}}
-        self.to_process = []
         self.processing_thread = None
-        self.processed = []  # Stored here once done processing
+        self.transfer_thread = None
+
+        self.processing_done = False
+        self.transfer_done = False
 
         # ########## Make signal/slot connections ##########
         self.connect_signals_to_slots()
@@ -179,69 +200,67 @@ class ScheduleHandler(QtCore.QThread):
 
     def run(self):
         while self.not_abort_flag:
-            self.check_for_midnight_reset()
-            self.check_schedules_and_add_to_queue()
-            self.process_queue_to_threads()
+            self.check_for_midnight_and_reset()
+            self.check_schedules_and_process()
             self.msleep(100)
 
-    def check_for_midnight_reset(self):
-        current_time = QtCore.QTime.currentTime()
-        midnight = QtCore.QTime.fromString("12:00:00 AM", "h:mm:ss AP")
+        if self.processing_thread:
+            self.processing_thread.wait()
 
-        if current_time.toString("h:mm:ss AP") == midnight.toString("h:mm:ss AP"):
-            self.processed = []
+        if self.transfer_thread:
+            self.transfer_thread.wait()
+
+    def check_for_midnight_and_reset(self):
+        current_time = QtCore.QTime.currentTime()
+
+        process_reset = self.settings.value("do_process_reset", 0).toInt()[0]
+        transfer_reset = self.settings.value("do_transfer_reset", 0).toInt()[0]
+
+        if current_time.toString("h:mm:ss AP") == midnight_qtime_string:
+            self.processing_done = False
+            self.transfer_done = False
             self.msleep(1000)
+        elif process_reset:
+            self.processing_done = False
+            self.settings.setValue("do_process_reset", int(False))
+        elif transfer_reset:
+            self.transfer_done = False
+            self.settings.setValue("do_transfer_reset", int(False))
 
-    def check_schedules_and_add_to_queue(self):
+    def check_schedules_and_process(self):
         current_time = QtCore.QTime.currentTime()
 
-        self.settings.beginGroup("TransferTable")
-        for i in range(self.settings.childGroups().count()):
-            self.settings.beginGroup(str(i))
+        enabled = self.settings.value("enabled", 0).toInt()[0]
 
-            if self.settings.value("enabled").toString() == "True":
-                sched_time = QtCore.QTime.fromString(self.settings.value("schedule").toString(), "h:mm AP")
-                if (sched_time.hour() == current_time.hour()) and (sched_time.minute() == current_time.minute()):
-                    a = self.settings.value("source").toString()
-                    b = self.settings.value("destination").toString()
-                    cleanup = self.settings.value("cleanup").toString()
-                    cleanup_age = self.settings.value("cleanup_age").toString()
-                    self.add_if_new_to_queue(a, b, "True", cleanup, cleanup, "False", cleanup_age)
-            self.settings.endGroup()
-        self.settings.endGroup()
+        if enabled:
+            process_time = QtCore.QTime.fromString(self.settings.value("csv_time").toString(), "h:mm AP")
+            transfer_time = QtCore.QTime.fromString(self.settings.value("transfer_time").toString(), "h:mm AP")
 
-        self.settings.beginGroup("CleanupTable")
-        for i in range(self.settings.childGroups().count()):
-            self.settings.beginGroup(str(i))
+            if (process_time.hour() == current_time.hour()) and (process_time.minute() == current_time.minute()):
+                if not self.processing_thread and not self.processing_done:
+                    local_vid = self.settings.value("local_video_path").toString()
+                    local_csv = self.settings.value("local_csv_path").toString()
 
-            if self.settings.value("enabled").toString() == "True":
-                sched_time = QtCore.QTime.fromString(self.settings.value("schedule").toString(), "h:mm AP")
-                if (sched_time.hour() == current_time.hour()) and (sched_time.minute() == current_time.minute()):
-                    a = self.settings.value("a_path").toString()
-                    b = self.settings.value("b_path").toString()
-                    a_if_in_b = self.settings.value("a_if_in_b").toString()
-                    b_and_a = self.settings.value("b_and_a").toString()
-                    cleanup_age = self.settings.value("cleanup_age").toString()
-                    self.add_if_new_to_queue(a, b, "False", "True", a_if_in_b, b_and_a, cleanup_age)
+                    self.processing_thread = QueueProcessor(self, PROCESS_TASK, local_vid, local_csv, "", "", 0)
 
-            self.settings.endGroup()
-        self.settings.endGroup()
+            if (transfer_time.hour() == current_time.hour()) and (transfer_time.minute() == current_time.minute()):
+                if not self.transfer_thread and not self.transfer_done:
+                    local_vid = self.settings.value("local_video_path").toString()
+                    local_csv = self.settings.value("local_csv_path").toString()
+                    transfer_vid = self.settings.value("video_transfer_path").toString()
+                    transfer_csv = self.settings.value("csv_transfer_path").toString()
+                    age = self.settings.value("cleanup_age").toInt()[0]
 
-    def add_if_new_to_queue(self, a, b, a_to_b, clean_a, c_a_if_in_b, c_b_and_a, cleanup_age):
-        new_entry = [str(a), str(b), str(a_to_b), str(clean_a), str(c_a_if_in_b), str(c_b_and_a), str(cleanup_age)]
+                    self.transfer_thread = QueueProcessor(self, TRANSFER_TASK, local_vid, local_csv, transfer_vid,
+                                                          transfer_csv, age)
 
-        if (new_entry not in self.to_process) and (new_entry not in self.processed):
-            self.to_process.append(new_entry)
-
-    def process_queue_to_threads(self):
-        if not self.processing_thread:
-            if self.to_process:
-                self.processing_thread = QueueProcessor(self, self.to_process[0])
-                self.processed.append(self.to_process[0])
-                del self.to_process[0]
-
-    def on_task_done_slot(self):
+    def on_processing_done_slot(self):
+        self.processing_done = True
         self.processing_thread = None
+
+    def on_transfer_done_slot(self):
+        self.transfer_done = True
+        self.transfer_thread = None
 
     def on_kill_threads_slot(self):
         self.not_abort_flag = False

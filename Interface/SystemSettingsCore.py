@@ -31,7 +31,7 @@ __status__ = "Development"
 # Imports
 #####################################
 # Python native imports
-from PyQt4 import QtCore, QtGui
+from PyQt4 import QtCore, QtGui\
 
 # Custom imports
 
@@ -89,15 +89,20 @@ class SettingsTab(QtCore.QObject):
         self.csv_transfer_le.textChanged.connect(self.save_settings)
         self.csv_transfer_bb.clicked.connect(self.on_csv_transfer_browse_clicked_slot)
 
-        self.process_csv_te.timeChanged.connect(self.save_settings)
-        self.transfer_te.timeChanged.connect(self.save_settings)
+        self.process_csv_te.timeChanged.connect(self.on_process_time_edit_changed_slot)
+        self.transfer_te.timeChanged.connect(self.on_transfer_time_edit_changed_slot)
         self.cleanup_age_sb.valueChanged.connect(self.save_settings)
 
     def load_saved_settings(self):
-        self.local_video_le.setText(self.settings.value("local_video_path", "").toString())
-        self.video_transfer_le.setText(self.settings.value("video_transfer_path", "").toString())
-        self.local_csv_le.setText(self.settings.value("local_csv_path", "").toString())
-        self.csv_transfer_le.setText(self.settings.value("csv_transfer_path", "").toString())
+        local_video = self.settings.value("local_video_path", "").toString()
+        transfer_video = self.settings.value("video_transfer_path", "").toString()
+        local_csv = self.settings.value("local_csv_path", "").toString()
+        transfer_csv = self.settings.value("csv_transfer_path", "").toString()
+
+        self.local_video_le.setText(local_video)
+        self.video_transfer_le.setText(transfer_video)
+        self.local_csv_le.setText(local_csv)
+        self.csv_transfer_le.setText(transfer_csv)
 
         self.process_csv_te.setTime(QtCore.QTime.fromString(
             self.settings.value("csv_time", "12:00 PM").toString(), "h:mm AP"))
@@ -107,15 +112,40 @@ class SettingsTab(QtCore.QObject):
 
         self.cleanup_age_sb.setValue(self.settings.value("cleanup_age", "365").toInt()[0])
 
+        if (local_video != "") and (transfer_video != "") and (local_csv != "") and (transfer_csv != ""):
+            self.settings.setValue("enabled", int(True))
+        else:
+            self.settings.setValue("enabled", int(False))
+
     def save_settings(self):
-        self.settings.setValue("local_video_path", self.local_video_le.text())
-        self.settings.setValue("video_transfer_path", self.video_transfer_le.text())
-        self.settings.setValue("local_csv_path", self.local_csv_le.text())
-        self.settings.setValue("csv_transfer_path", self.csv_transfer_le.text())
+        local_video = self.local_video_le.text()
+        transfer_video = self.video_transfer_le.text()
+        local_csv = self.local_csv_le.text()
+        transfer_csv = self.csv_transfer_le.text()
+
+        self.settings.setValue("local_video_path", local_video)
+        self.settings.setValue("video_transfer_path", transfer_video)
+        self.settings.setValue("local_csv_path", local_csv)
+        self.settings.setValue("csv_transfer_path", transfer_csv)
 
         self.settings.setValue("csv_time", self.process_csv_te.time().toString("h:mm AP"))
         self.settings.setValue("transfer_time", self.transfer_te.time().toString("h:mm AP"))
         self.settings.setValue("cleanup_age", self.cleanup_age_sb.value())
+
+        if (local_video != "") and (transfer_video != "") and (local_csv != "") and (transfer_csv != ""):
+            self.settings.setValue("enabled", int(True))
+        else:
+            self.settings.setValue("enabled", int(False))
+
+        self.settings.sync()
+
+    def on_process_time_edit_changed_slot(self):
+        self.save_settings()
+        self.settings.setValue("do_process_reset", int(True))
+
+    def on_transfer_time_edit_changed_slot(self):
+        self.save_settings()
+        self.settings.setValue("do_transfer_reset", int(True))
 
     def on_local_video_browse_clicked_slot(self):
         self.local_video_le.setText(self.get_folder_dialog_and_results())
@@ -134,4 +164,4 @@ class SettingsTab(QtCore.QObject):
         file_dialog.setFileMode(QtGui.QFileDialog.DirectoryOnly)
         file_dialog.exec_()
 
-        return file_dialog.selectedFiles()[0]
+        return file_dialog.selectedFiles()[0].replace("/", "\\")

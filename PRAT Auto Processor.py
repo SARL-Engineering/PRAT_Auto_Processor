@@ -40,8 +40,8 @@ from Framework.LoggerCore import Logger
 from Framework.SettingsCore import Settings
 from Interface.StatusLoggerCore import StatusLoggerTab
 from Interface.SystemSettingsCore import SettingsTab
-#
-# from Framework.ScheduleHandlerCore import ScheduleHandler
+
+from Framework.ScheduleHandlerCore import ScheduleHandler
 
 #####################################
 # Global Variables
@@ -73,7 +73,7 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
         self.settings_tab = SettingsTab(self)
 
         # ########## Instantiations of the scheduler class ##########
-        #self.scheduler = ScheduleHandler(self)
+        self.scheduler = ScheduleHandler(self)
 
         # ########## Creation of the system tray icon ##########
         self.tray_icon = None
@@ -89,6 +89,7 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
         # ########## Class variables ##########
         self.threads_to_wait_for = []
         self.threads_to_wait_for.append(self.log_viewer_tab)
+        self.threads_to_wait_for.append(self.scheduler)
 
         # ########## Setup signal and slot connections ##########
         self.connect_signals_to_slots()
@@ -96,6 +97,7 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
     def connect_signals_to_slots(self):
         self.main_tab_widget.currentChanged.connect(self.on_main_tab_widget_tab_changed)
         self.kill_all_threads.connect(self.log_viewer_tab.on_kill_threads_slot)
+        self.kill_all_threads.connect(self.scheduler.on_kill_threads_slot)
 
     def setup_tray_icon(self):
         self.tray_icon = QtGui.QSystemTrayIcon(QtGui.QIcon("Resources/app_icon.png"))

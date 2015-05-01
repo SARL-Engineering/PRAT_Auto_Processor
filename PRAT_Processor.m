@@ -2,11 +2,11 @@
 function varargout = PRAT_Processor(processing_path, output_path)
 
 %%%%%%%%%% Decleration of variables %%%%%%%%%%
-handles.batch_processing_path = processing_path;
+handles.batch_processing_path = strrep(processing_path, '\\', '\');
 handles.file_list=dir([handles.batch_processing_path, '\', '*.seq']);%get seq file list linux path
 [handles.file_number, ~] = size(handles.file_list);
 
-handles.save_path = output_path;
+handles.save_path = strrep(output_path, '\\', '\');
 
 load([cd, '\settings.mat']);
 handles.x1 = x1;  
