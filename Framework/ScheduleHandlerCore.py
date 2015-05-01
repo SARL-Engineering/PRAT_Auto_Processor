@@ -49,6 +49,7 @@ midnight_qtime_string = QtCore.QTime.fromString("12:00:00 AM", "h:mm:ss AP").toS
 PROCESS_TASK = 0
 TRANSFER_TASK = 1
 
+
 #####################################
 # QueueProcessor Class Definition
 #####################################
@@ -123,38 +124,8 @@ class QueueProcessor(QtCore.QThread):
                         os.makedirs(self.csv_transfer_path)
                         self.logger.info("CSV transfer folder does not exist. Making directory.")
 
-                    seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
-
-                    self.logger.info("Attempting to transfer files. This will take some time.")
-                    start_time = time.clock()
-
-                    for seq_path, csv_path in seq_csv_pairs:
-
-                        seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
-                        seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
-                            str(seq_mod_date.year)
-
-                        seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
-
-                        if not os.path.isdir(seq_full_folder_path):
-                            os.makedirs(seq_full_folder_path)
-                            self.logger.info("Making seq date directory: " + seq_full_folder_path)
-
-                        self.logger.info("Transferring seq file \"" + seq_path + "\" to \"" + seq_full_folder_path +
-                                         "\".")
-                        shutil.copy(seq_path, seq_full_folder_path)
-
-                        self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + self.csv_transfer_path +
-                                         "\".")
-                        shutil.copy(csv_path, self.csv_transfer_path)
-
-                    stop_time = time.clock()
-                    diff_time_str = str((stop_time-start_time)/60.0)
-                    self.logger.info("Transferring completed in " + diff_time_str + " minutes.")
-
-                    # TODO: Implement checking that files transfered
-                    # TODO: Delete local files that have been transfered
-                    # TODO: Delete transferred video files older than a certain age that have a csv on the server
+                    self.do_file_transfers()
+                    self.cleanup_old_seq_files()
 
                 else:
                     self.logger.info("Attempted to transfer files, but local csv path does not exist. Please check " +
@@ -163,6 +134,83 @@ class QueueProcessor(QtCore.QThread):
                 self.logger.info("Attempted to transfer files, but local video path does not exist. Please check " +
                                  "directory.")
         self.task_done.emit()
+
+    def do_file_transfers(self):
+        seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
+
+        if seq_csv_pairs:
+            self.logger.info("Attempting to transfer files. This will take some time.")
+            start_time = time.clock()
+
+            for seq_path, csv_path in seq_csv_pairs:
+
+                seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
+                seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
+                    str(seq_mod_date.year)
+
+                seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
+                seq_full_transfer_path = seq_full_folder_path + "\\" + seq_path.split("\\")[-1]
+
+                csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1]
+
+                if not os.path.isdir(seq_full_folder_path):
+                    os.makedirs(seq_full_folder_path)
+
+                self.logger.info("Transferring SEQ file \"" + seq_path + "\" to \"" + seq_full_transfer_path +
+                                 "\".")
+                shutil.copy(seq_path, seq_full_transfer_path)
+
+                self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + csv_full_transfer_path +
+                                 "\".")
+                shutil.copy(csv_path, csv_full_transfer_path)
+
+                if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path):
+                    os.unlink(seq_path)
+                    os.unlink(csv_path)
+                    self.logger.info("Deleting \"" + seq_path + "\" and \"" + csv_path + "\"")
+                elif not os.path.isfile(seq_full_transfer_path):
+                    self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and " +
+                                    "CSV will not be deleted. Please check permissions.")
+                elif not os.path.isfile(csv_full_transfer_path):
+                    self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ and " +
+                                    "CSV will not be deleted. Please check permissions.")
+
+            stop_time = time.clock()
+            diff_time_str = str((stop_time-start_time)/60.0)
+            self.logger.info("Transferring completed in " + diff_time_str + " minutes.")
+        else:
+            self.logger.info("No files to transfer.")
+
+    def cleanup_old_seq_files(self):
+        seq_names_paths_and_age = []
+        csv_names_paths = []
+
+        for root, dirs, files in os.walk(self.vid_transfer_path):
+            for name in files:
+                full_path = os.path.join(root, name)
+                age = os.path.getmtime(full_path)
+                seq_names_paths_and_age.append([name[:-4], full_path, age])
+
+        for root, dirs, files in os.walk(self.csv_transfer_path):
+            for name in files:
+                full_path = os.path.join(root, name)
+                csv_names_paths.append([name[:-4], full_path])
+
+        for seq_name, seq_full_path, seq_age in seq_names_paths_and_age:
+            if seq_age < (time.time() - (86400 * self.cleanup_age)):
+                for csv_name, csv_path in csv_names_paths:
+                    if seq_name == csv_name:
+                        self.logger.info("Deleting \"" + seq_full_path + "\". SEQ is older than " +
+                                         str(self.cleanup_age) + " days and has corresponding CSV.")
+                        os.unlink(seq_full_path)
+                        self.delete_folder_if_empty("\\".join(seq_full_path.split("\\")[:-1]))
+
+    def delete_folder_if_empty(self, path_to_folder):
+        for root, dirs, files in os.walk(path_to_folder):
+            if not files:
+                self.logger.info("Deleting empty folder \"" + path_to_folder + "\".")
+                os.rmdir(path_to_folder)
+
 
     def get_seq_csv_pairs(self, local_seq, local_csv):
         csv_list = []
@@ -188,7 +236,6 @@ class QueueProcessor(QtCore.QThread):
 
         return seq_csv_pairs
 
-
     def file_count(self, path):
         count = 0
         for file_or_folder in os.listdir(path):
@@ -199,34 +246,6 @@ class QueueProcessor(QtCore.QThread):
                 except:
                     self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
         return count
-
-    def clean_path(self, a, b, check_b_before_clean, age):
-        for file_folder in os.listdir(a):
-            file_path_a = os.path.join(a, file_folder)
-            file_path_b = os.path.join(b, file_folder)
-
-            try:
-                if os.path.isfile(file_path_a):
-                    if os.path.getmtime(file_path_a) < (time.time() - (86400 * int(age[:-5]))):
-                        if check_b_before_clean == "True":
-                            if os.path.exists(file_path_b):
-                                os.unlink(file_path_a)
-                                self.cleanup_logger.info("Cleaned up file: " + str(file_path_a))
-                        else:
-                            os.unlink(file_path_a)
-                            self.cleanup_logger.info("Cleaned up file: " + str(file_path_a))
-
-                elif os.path.isdir(file_path_a):
-                    self.clean_path(file_path_a, file_path_b, check_b_before_clean, age)
-                    for dirpath, dirnames, files in os.walk(file_path_a):
-                        if not files:
-                            os.rmdir(file_path_a)
-                            self.cleanup_logger.info("Cleaned up empty folder: " + str(file_path_a))
-            except Exception, e:
-                self.cleanup_logger.info("Directory(s) exists, but cleanup failed. Please check permissions.")
-                return True
-
-        return False
 
 
 #####################################
