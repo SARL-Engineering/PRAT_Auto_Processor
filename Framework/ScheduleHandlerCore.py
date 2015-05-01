@@ -34,9 +34,10 @@ __status__ = "Development"
 from PyQt4 import QtCore
 import os
 import logging
-from distutils.dir_util import copy_tree
+import shutil
 import time
 import matlab.engine
+import datetime
 
 # Custom imports
 
@@ -82,6 +83,7 @@ class QueueProcessor(QtCore.QThread):
             if os.path.isdir(self.local_vid_path):
                 if not os.path.isdir(self.local_csv_path):
                     os.makedirs(self.local_csv_path)
+                    self.logger.info("Local CSV output folder does not exist. Making directory.")
 
                 count = self.file_count(self.local_vid_path)
                 original_out_csv_count = self.file_count(self.local_csv_path)
@@ -115,27 +117,84 @@ class QueueProcessor(QtCore.QThread):
                                  " Please check that \"" + self.local_vid_path + "\" exists.")
 
         elif self.task_type == TRANSFER_TASK:
-            print self.local_vid_path
-            print self.local_csv_path
-            print self.vid_transfer_path
-            print self.csv_transfer_path
-            print self.cleanup_age
+            if os.path.isdir(self.local_vid_path):
+                if os.path.isdir(self.local_csv_path):
+                    if not os.path.isdir(self.csv_transfer_path):
+                        os.makedirs(self.csv_transfer_path)
+                        self.logger.info("CSV transfer folder does not exist. Making directory.")
 
+                    seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
+
+                    self.logger.info("Attempting to transfer files. This will take some time.")
+                    start_time = time.clock()
+
+                    for seq_path, csv_path in seq_csv_pairs:
+
+                        seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
+                        seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
+                            str(seq_mod_date.year)
+
+                        seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
+
+                        if not os.path.isdir(seq_full_folder_path):
+                            os.makedirs(seq_full_folder_path)
+                            self.logger.info("Making seq date directory: " + seq_full_folder_path)
+
+                        self.logger.info("Transferring seq file \"" + seq_path + "\" to \"" + seq_full_folder_path +
+                                         "\".")
+                        shutil.copy(seq_path, seq_full_folder_path)
+
+                        self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + self.csv_transfer_path +
+                                         "\".")
+                        shutil.copy(csv_path, self.csv_transfer_path)
+
+                    stop_time = time.clock()
+                    diff_time_str = str((stop_time-start_time)/60.0)
+                    self.logger.info("Transferring completed in " + diff_time_str + " minutes.")
+
+                else:
+                    self.logger.info("Attempted to transfer files, but local csv path does not exist. Please check " +
+                                     "directory.")
+            else:
+                self.logger.info("Attempted to transfer files, but local video path does not exist. Please check " +
+                                 "directory.")
         self.task_done.emit()
+
+    def get_seq_csv_pairs(self, local_seq, local_csv):
+        csv_list = []
+        seq_csv_pairs = []
+
+        for file_or_folder in os.listdir(local_csv):
+            full_path = os.path.join(local_csv, file_or_folder).replace('/', "\\")
+            try:
+                if os.path.isfile(full_path):
+                    csv_list.append([file_or_folder[:-4], full_path])
+            except:
+                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+
+        for file_or_folder in os.listdir(local_seq):
+            full_path = os.path.join(local_seq, file_or_folder).replace('/', "\\")
+            try:
+                if os.path.isfile(full_path):
+                    for csv_name, csv_path in csv_list:
+                        if csv_name == file_or_folder[:-4]:
+                            seq_csv_pairs.append([full_path, csv_path])
+            except:
+                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+
+        return seq_csv_pairs
+
 
     def file_count(self, path):
         count = 0
-
         for file_or_folder in os.listdir(path):
                 full_path = os.path.join(path, file_or_folder)
-
                 try:
                     if os.path.isfile(full_path):
                         count += 1
                 except:
                     self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
         return count
-
 
     def clean_path(self, a, b, check_b_before_clean, age):
         for file_folder in os.listdir(a):
@@ -220,6 +279,7 @@ class ScheduleHandler(QtCore.QThread):
             self.processing_done = False
             self.transfer_done = False
             self.msleep(1000)
+            print "Everything is reset!!!!! Now DELETE ME"  # TODO: DELETE ME
         elif process_reset:
             self.processing_done = False
             self.settings.setValue("do_process_reset", int(False))
