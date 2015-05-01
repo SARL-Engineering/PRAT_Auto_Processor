@@ -152,6 +152,10 @@ class QueueProcessor(QtCore.QThread):
                     diff_time_str = str((stop_time-start_time)/60.0)
                     self.logger.info("Transferring completed in " + diff_time_str + " minutes.")
 
+                    # TODO: Implement checking that files transfered
+                    # TODO: Delete local files that have been transfered
+                    # TODO: Delete transferred video files older than a certain age that have a csv on the server
+
                 else:
                     self.logger.info("Attempted to transfer files, but local csv path does not exist. Please check " +
                                      "directory.")
@@ -238,6 +242,9 @@ class ScheduleHandler(QtCore.QThread):
         # ########## Get the settings instance ##########
         self.settings = QtCore.QSettings()
 
+        # ########## Get the instances of the loggers ##########
+        self.logger = logging.getLogger("PRAT Auto Processor")
+
         # ########## Thread flags ##########
         self.not_abort_flag = True
 
@@ -278,8 +285,8 @@ class ScheduleHandler(QtCore.QThread):
         if current_time.toString("h:mm:ss AP") == midnight_qtime_string:
             self.processing_done = False
             self.transfer_done = False
+            self.logger.info("Processing and file transfers have been reset for next day use.")
             self.msleep(1000)
-            print "Everything is reset!!!!! Now DELETE ME"  # TODO: DELETE ME
         elif process_reset:
             self.processing_done = False
             self.settings.setValue("do_process_reset", int(False))
