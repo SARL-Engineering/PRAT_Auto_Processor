@@ -1,0 +1,25 @@
+Local Video Path (Separated into folders with video date)
+Remote Video Transfer Path (Separated into folders with video date)
+Local CSV Output Path (One folder with all CSVs)
+Remote CSV Transfer Path (One folder with all CSVs)
+Specified time during day to process all videos
+Specified time during day to transfer all videos
+Specified age of video files to clean up off of remote video transfer path, so long as their corresponding csv is in the remote csv transfer path
+
+
+__author__ = 'Corwin'
+
+
+import matlab.engine
+import time
+
+
+engine = matlab.engine.start_matlab()
+async = engine.PRAT_Processor('E:\SEQ Files', 'E:\OUTCSV', async=True)
+print "Initialized matlab"
+
+while not async.done():
+    print "Processing"
+    time.sleep(1)
+
+print "Finished processing"

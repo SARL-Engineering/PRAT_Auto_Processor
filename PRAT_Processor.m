@@ -129,10 +129,7 @@ for k=1:handles.file_number
     time_stamp   = [];
     time_stamp_temp = [];
     result_output_s=[];
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    %calculation 
-%    result_s = differential_batch(x_vector,y_vector,handles.r,10,handles.readerobj);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 
