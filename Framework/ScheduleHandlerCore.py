@@ -31,7 +31,7 @@ __status__ = "Development"
 # Imports
 #####################################
 # Python native imports
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 import os
 import logging
 import shutil
@@ -49,12 +49,16 @@ midnight_qtime_string = QtCore.QTime.fromString("12:00:00 AM", "h:mm:ss AP").toS
 PROCESS_TASK = 0
 TRANSFER_TASK = 1
 
+INFORMATION = QtGui.QSystemTrayIcon.Information
+CRITICAL = QtGui.QSystemTrayIcon.Critical
 
 #####################################
 # QueueProcessor Class Definition
 #####################################
 class QueueProcessor(QtCore.QThread):
+
     task_done = QtCore.pyqtSignal()
+    show_messagebox = QtCore.pyqtSignal(str, str, int, int)
 
     def __init__(self, master, task_type, local_vid_path, local_csv_path, vid_transfer_path, csv_transfer_path, age):
         QtCore.QThread.__init__(self)
@@ -77,6 +81,10 @@ class QueueProcessor(QtCore.QThread):
         elif self.task_type == TRANSFER_TASK:
             self.task_done.connect(self.master.on_transfer_done_slot)
 
+        # ########## Connect messagebox signal to main gui slot ##########
+        self.show_messagebox.connect(self.master.main_window.on_tray_icon_messagebox_needed_slot)
+
+        # ########## Start worker thread ##########
         self.start()
 
     def run(self):
@@ -116,6 +124,8 @@ class QueueProcessor(QtCore.QThread):
             else:
                 self.logger.info("Local video path does not exist! Processing failed!" +
                                  " Please check that \"" + self.local_vid_path + "\" exists.")
+                self.show_messagebox.emit("Processing", "Processing failed!\nPlease check logs!",
+                                          CRITICAL, 60)
 
         elif self.task_type == TRANSFER_TASK:
             if os.path.isdir(self.local_vid_path):
@@ -130,15 +140,20 @@ class QueueProcessor(QtCore.QThread):
                 else:
                     self.logger.info("Attempted to transfer files, but local csv path does not exist. Please check " +
                                      "directory.")
+                    self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                              CRITICAL, 60)
             else:
                 self.logger.info("Attempted to transfer files, but local video path does not exist. Please check " +
                                  "directory.")
+                self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                          CRITICAL, 60)
         self.task_done.emit()
 
     def do_file_transfers(self):
         seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
 
         if seq_csv_pairs:
+
             self.logger.info("Attempting to transfer files. This will take some time.")
             start_time = time.clock()
 
@@ -169,11 +184,15 @@ class QueueProcessor(QtCore.QThread):
                     os.unlink(csv_path)
                     self.logger.info("Deleting \"" + seq_path + "\" and \"" + csv_path + "\"")
                 elif not os.path.isfile(seq_full_transfer_path):
-                    self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and " +
-                                    "CSV will not be deleted. Please check permissions.")
+                    self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
+                                    + "CSV will not be deleted. Please check permissions.")
+                    self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                              CRITICAL, 60)
                 elif not os.path.isfile(csv_full_transfer_path):
-                    self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ and " +
-                                    "CSV will not be deleted. Please check permissions.")
+                    self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
+                                    + "CSV will not be deleted. Please check permissions.")
+                    self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                              CRITICAL, 60)
 
             stop_time = time.clock()
             diff_time_str = str((stop_time-start_time)/60.0)
@@ -210,7 +229,6 @@ class QueueProcessor(QtCore.QThread):
             if not files:
                 self.logger.info("Deleting empty folder \"" + path_to_folder + "\".")
                 os.rmdir(path_to_folder)
-
 
     def get_seq_csv_pairs(self, local_seq, local_csv):
         csv_list = []

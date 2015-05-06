@@ -94,6 +94,9 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
         # ########## Setup signal and slot connections ##########
         self.connect_signals_to_slots()
 
+        # ########## Show startup messagebox ##########
+        # self.tray_icon.showMessage
+
     def connect_signals_to_slots(self):
         self.main_tab_widget.currentChanged.connect(self.on_main_tab_widget_tab_changed)
         self.kill_all_threads.connect(self.log_viewer_tab.on_kill_threads_slot)
@@ -110,7 +113,9 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
         self.tray_menu.triggered.connect(self.on_tray_exit_triggered_slot)
         self.tray_icon.setContextMenu(self.tray_menu)
 
-        self.tray_icon.hide()
+        self.tray_icon.show()
+        self.tray_icon.showMessage("PRAT Auto Processor", "Application started.\nCritical messages will be shown " +
+                                                          "here.", QtGui.QSystemTrayIcon.Information, 5000)
 
     def setup_taskbar_icon(self):
         app_icon = QtGui.QIcon()
@@ -136,7 +141,6 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
                 event.accept()
             else:
                 self.hide()
-                self.tray_icon.show()
                 event.ignore()
 
     def on_tray_exit_triggered_slot(self, event):
@@ -144,18 +148,19 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
             pass
         elif (event == 2) or (event == 3):
             self.show()
-            self.tray_icon.hide()
         elif event.text() == "Exit":
             self.close()
         elif event.text() == "Show":
             self.show()
-            self.tray_icon.hide()
 
     def on_main_tab_widget_tab_changed(self, index):
         if index == 0:
             self.resize(850, 700)
         elif index == 1:
             self.resize(575, 315)
+
+    def on_tray_icon_messagebox_needed_slot(self, title, message, priority, duration):
+        self.tray_icon.showMessage(title, message, priority, 1000*duration)
 
     def wait_for_all_threads(self):
         for thread in self.threads_to_wait_for:
