@@ -33,6 +33,7 @@ __status__ = "Development"
 # Python native imports
 from PyQt4 import QtCore, QtGui
 import os
+import psutil
 import logging
 import shutil
 import time
@@ -51,6 +52,7 @@ TRANSFER_TASK = 1
 
 INFORMATION = QtGui.QSystemTrayIcon.Information
 CRITICAL = QtGui.QSystemTrayIcon.Critical
+
 
 #####################################
 # QueueProcessor Class Definition
@@ -89,6 +91,7 @@ class QueueProcessor(QtCore.QThread):
 
     def run(self):
         if self.task_type == PROCESS_TASK:
+            self.logger.info("##### PROCESSING TASK RUNNING #####")
             if os.path.isdir(self.local_vid_path):
                 if not os.path.isdir(self.local_csv_path):
                     os.makedirs(self.local_csv_path)
@@ -101,8 +104,12 @@ class QueueProcessor(QtCore.QThread):
                     self.logger.info("Attempting to process " + str(count) + " SEQ files. This will take some time.")
 
                     start_time = time.clock()
+
                     matlab_engine = matlab.engine.start_matlab()
                     matlab_engine.PRAT_Processor(self.local_vid_path, self.local_csv_path)
+                    matlab_engine.quit()
+                    del matlab_engine
+
                     stop_time = time.clock()
 
                     diff_time_str = str((stop_time-start_time)/60.0)
@@ -113,11 +120,11 @@ class QueueProcessor(QtCore.QThread):
                     csv_diff = new_out_csv_count - original_out_csv_count
 
                     if csv_diff == count:
-                        self.logger.info("All SEQ files processed successfully!")
+                        self.logger.info("All SEQ files processed successfully!\n")
                     else:
                         self.logger.log("SEQ files not processed successfully!" +
                                         " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
-                                        " CSV files were created. Please check your SEQ files!")
+                                        " CSV files were created. Please check your SEQ files!\n")
                 else:
                     self.logger.info("Attempted to process SEQ files, but none exist.")
 
@@ -128,6 +135,8 @@ class QueueProcessor(QtCore.QThread):
                                           CRITICAL, 60)
 
         elif self.task_type == TRANSFER_TASK:
+            self.kill_process_if_running("Streampix5-single.exe")
+            self.logger.info("##### TRANSFER TASK RUNNING #####")
             if os.path.isdir(self.local_vid_path):
                 if os.path.isdir(self.local_csv_path):
                     if not os.path.isdir(self.csv_transfer_path):
@@ -180,9 +189,19 @@ class QueueProcessor(QtCore.QThread):
                 shutil.copy(csv_path, csv_full_transfer_path)
 
                 if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path):
-                    os.unlink(seq_path)
-                    os.unlink(csv_path)
-                    self.logger.info("Deleting \"" + seq_path + "\" and \"" + csv_path + "\"")
+                    try:
+                        os.unlink(seq_path)
+                        self.logger.info("Deleted SEQ file \"" + seq_path + "\"")
+                    except:
+                        self.logger.info("Failed to delete SEQ file \"" + seq_path + "\"!!!!!")
+
+                    try:
+                        os.unlink(csv_path)
+                        self.logger.info("Deleted CSV file \"" + csv_path + "\".\n")
+                    except:
+                        self.logger.info("Failed to delete CSV file \"" + csv_path + "\"!!!!!")
+
+
                 elif not os.path.isfile(seq_full_transfer_path):
                     self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
                                     + "CSV will not be deleted. Please check permissions.")
@@ -196,9 +215,9 @@ class QueueProcessor(QtCore.QThread):
 
             stop_time = time.clock()
             diff_time_str = str((stop_time-start_time)/60.0)
-            self.logger.info("Transferring completed in " + diff_time_str + " minutes.")
+            self.logger.info("Transferring completed in " + diff_time_str + " minutes.\n")
         else:
-            self.logger.info("No files to transfer.")
+            self.logger.info("No files to transfer.\n")
 
     def cleanup_old_seq_files(self):
         seq_names_paths_and_age = []
@@ -265,6 +284,18 @@ class QueueProcessor(QtCore.QThread):
                     self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
         return count
 
+    @staticmethod
+    def kill_process_if_running(process_name):
+        pid_list = psutil.get_pid_list()
+        for pid in pid_list:
+            try:
+                process = psutil.Process(pid)
+                name = str(process.name())
+                if name == process_name:
+                    process.terminate()
+                    process.wait(timeout=3)
+            except:
+                pass
 
 #####################################
 # ScheduleHandler Class Definition
@@ -322,7 +353,7 @@ class ScheduleHandler(QtCore.QThread):
         if current_time.toString("h:mm:ss AP") == midnight_qtime_string:
             self.processing_done = False
             self.transfer_done = False
-            self.logger.info("Processing and file transfers have been reset for next day use.")
+            self.logger.info("#####Processing and file transfers have been reset for next day use.#####")
             self.msleep(1000)
         elif process_reset:
             self.processing_done = False
