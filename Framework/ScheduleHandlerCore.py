@@ -123,8 +123,8 @@ class QueueProcessor(QtCore.QThread):
                         self.logger.info("All SEQ files processed successfully!\n")
                     else:
                         self.logger.info("SEQ files not processed successfully!" +
-                                        " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
-                                        " CSV files were created. Please check your SEQ files!\n")
+                                         " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
+                                         " CSV files were created. Please check your SEQ files!\n")
                 else:
                     self.logger.info("Attempted to process SEQ files, but none exist.")
 
