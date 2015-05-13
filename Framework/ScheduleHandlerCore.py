@@ -122,7 +122,7 @@ class QueueProcessor(QtCore.QThread):
                     if csv_diff == count:
                         self.logger.info("All SEQ files processed successfully!\n")
                     else:
-                        self.logger.log("SEQ files not processed successfully!" +
+                        self.logger.info("SEQ files not processed successfully!" +
                                         " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
                                         " CSV files were created. Please check your SEQ files!\n")
                 else:
