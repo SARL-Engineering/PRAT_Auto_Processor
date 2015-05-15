@@ -351,14 +351,23 @@ class ScheduleHandler(QtCore.QThread):
         transfer_reset = self.settings.value("do_transfer_reset", 0).toInt()[0]
 
         if current_time.toString("h:mm:ss AP") == midnight_qtime_string:
+            while self.processing_thread or self.transfer_thread:
+                self.msleep(1000)
+
             self.processing_done = False
             self.transfer_done = False
             self.logger.info("#####Processing and file transfers have been reset for next day use.#####")
             self.msleep(1000)
+
         elif process_reset:
+            while self.processing_thread:
+                self.msleep(1000)
             self.processing_done = False
             self.settings.setValue("do_process_reset", int(False))
+
         elif transfer_reset:
+            while self.transfer_thread:
+                self.msleep(1000)
             self.transfer_done = False
             self.settings.setValue("do_transfer_reset", int(False))
 
