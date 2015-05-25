@@ -182,11 +182,25 @@ class QueueProcessor(QtCore.QThread):
 
                 self.logger.info("Transferring SEQ file \"" + seq_path + "\" to \"" + seq_full_transfer_path +
                                  "\".")
-                shutil.copy(seq_path, seq_full_transfer_path)
+                if os.path.isfile(seq_full_transfer_path):
+                    try:
+                        os.unlink(seq_full_transfer_path)
+                        shutil.copy(seq_path, seq_full_transfer_path)
+                    except:
+                        self.logger.info("Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+                else:
+                    shutil.copy(seq_path, seq_full_transfer_path)
 
                 self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + csv_full_transfer_path +
                                  "\".")
-                shutil.copy(csv_path, csv_full_transfer_path)
+                if os.path.isfile(csv_full_transfer_path):
+                    try:
+                        os.unlink(csv_full_transfer_path)
+                        shutil.copy(csv_path, csv_full_transfer_path)
+                    except:
+                        self.logger.info("Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+                else:
+                    shutil.copy(csv_path, csv_full_transfer_path)
 
                 if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path):
                     try:
@@ -200,7 +214,6 @@ class QueueProcessor(QtCore.QThread):
                         self.logger.info("Deleted CSV file \"" + csv_path + "\".\n")
                     except:
                         self.logger.info("Failed to delete CSV file \"" + csv_path + "\"!!!!!")
-
 
                 elif not os.path.isfile(seq_full_transfer_path):
                     self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
