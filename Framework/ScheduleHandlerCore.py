@@ -137,25 +137,38 @@ class QueueProcessor(QtCore.QThread):
         elif self.task_type == TRANSFER_TASK:
             self.kill_process_if_running("Streampix5-single.exe")
             self.logger.info("##### TRANSFER TASK RUNNING #####")
-            if os.path.isdir(self.local_vid_path):
-                if os.path.isdir(self.local_csv_path):
-                    if not os.path.isdir(self.csv_transfer_path):
-                        os.makedirs(self.csv_transfer_path)
-                        self.logger.info("CSV transfer folder does not exist. Making directory.")
+            if os.path.exists(self.csv_transfer_path.split("\\")[0]):
+                if os.path.exists(self.vid_transfer_path.split("\\")[0]):
+                    if os.path.isdir(self.local_vid_path):
+                        if os.path.isdir(self.local_csv_path):
+                            if not os.path.isdir(self.csv_transfer_path):
+                                os.makedirs(self.csv_transfer_path)
+                                self.logger.info("CSV transfer folder does not exist. Making directory.")
 
-                    self.do_file_transfers()
-                    self.cleanup_old_seq_files()
+                            self.do_file_transfers()
+                            self.cleanup_old_seq_files()
 
+                        else:
+                            self.logger.info("Attempted to transfer files, but local csv path does not exist. Please "
+                                             + "check directory.")
+                            self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                                      CRITICAL, 60)
+                    else:
+                        self.logger.info("Attempted to transfer files, but local video path does not exist. Please "
+                                         + "check directory.")
+                        self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                                  CRITICAL, 60)
                 else:
-                    self.logger.info("Attempted to transfer files, but local csv path does not exist. Please check " +
-                                     "directory.")
+                    self.logger.info("Remote seq transfer path not found and could not be reconnected. Please check for"
+                                     + " a network outage!")
                     self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                               CRITICAL, 60)
             else:
-                self.logger.info("Attempted to transfer files, but local video path does not exist. Please check " +
-                                 "directory.")
+                self.logger.info("Remote csv transfer path not found and could not be reconnected. Please check for"
+                                 + " a network outage!")
                 self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                           CRITICAL, 60)
+
         self.task_done.emit()
 
     def do_file_transfers(self):
