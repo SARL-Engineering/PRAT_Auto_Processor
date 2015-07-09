@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>571</width>
-    <height>313</height>
+    <height>375</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,11 @@
   </property>
   <property name="styleSheet">
    <string notr="true">background-color: rgb(15,15,15);
-color:rgb(202,202,202);</string>
+color:rgb(202,202,202);
+
+QPushButton{
+	background-color:rgb(55,55,55);
+}</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
@@ -136,7 +140,7 @@ QCheckBox:indicator:checked{
                </size>
               </property>
               <property name="text">
-               <string>Local Video Path:</string>
+               <string>Local SEQ Path:</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignCenter</set>
@@ -197,7 +201,7 @@ QCheckBox:indicator:checked{
                </size>
               </property>
               <property name="text">
-               <string>Video Transfer Path:</string>
+               <string>SEQ Transfer Path:</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignCenter</set>
@@ -350,6 +354,128 @@ QCheckBox:indicator:checked{
             </item>
             <item>
              <widget class="QPushButton" name="csv_transfer_browse_button">
+              <property name="text">
+               <string>Browse</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <item>
+             <widget class="QLabel" name="label_9">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>130</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>130</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Local JPG Output Path</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="local_jpg_line_edit">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>300</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="local_jpg_browse_button">
+              <property name="text">
+               <string>Browse</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_9">
+            <item>
+             <widget class="QLabel" name="label_10">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>130</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>130</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>JPG Tansfer Path</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="jpg_transfer_line_edit">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>300</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="jpg_transfer_browse_button">
               <property name="text">
                <string>Browse</string>
               </property>

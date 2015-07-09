@@ -40,7 +40,6 @@ from Framework.LoggerCore import Logger
 from Framework.SettingsCore import Settings
 from Interface.StatusLoggerCore import StatusLoggerTab
 from Interface.SystemSettingsCore import SettingsTab
-
 from Framework.ScheduleHandlerCore import ScheduleHandler
 
 #####################################
@@ -157,7 +156,7 @@ class ProgramWindow(QtGui.QMainWindow, form_class):
         if index == 0:
             self.resize(850, 700)
         elif index == 1:
-            self.resize(575, 315)
+            self.resize(575, 375)
 
     def on_tray_icon_messagebox_needed_slot(self, title, message, priority, duration):
         self.tray_icon.showMessage(title, message, priority, 1000*duration)

@@ -1,5 +1,5 @@
 % --- Executes on button press in BATCHCALCU.
-function varargout = PRAT_Processor(processing_path, output_path)
+function varargout = PRAT_Processor(processing_path, output_path, jpg_path)
 
 %%%%%%%%%% Decleration of variables %%%%%%%%%%
 handles.batch_processing_path = strrep(processing_path, '\\', '\');
@@ -7,6 +7,7 @@ handles.file_list=dir([handles.batch_processing_path, '\', '*.seq']);%get seq fi
 [handles.file_number, ~] = size(handles.file_list);
 
 handles.save_path = strrep(output_path, '\\', '\');
+handles.jpg_path = strrep(jpg_path, '\\', '\');
 
 load([cd, '\settings.mat']);
 handles.x1 = x1;  
@@ -16,6 +17,7 @@ handles.x12 = x12;
 handles.y12 = y12;
 handles.x96 = x96;
 handles.y96 = y96;
+handles.frame_display = 500;
 
 %%%%%%%%%% BEGINNING OF COPIED FUNCTION %%%%%%%%%%
 x85=handles.x96-handles.x12+handles.x1;
@@ -71,11 +73,9 @@ for j=1:12
     end
 end 
 
-
 handles.x_radius = round(x_radius);%all value should be integer
 handles.y_radius = round(y_radius);
 %%%%%%%%%% END OF COPIED FUNCTION %%%%%%%%%%
-
 
 for k=1:handles.file_number
     %set current time as MAT's name
@@ -83,9 +83,6 @@ for k=1:handles.file_number
     current_time_string_for_text_1 = [num2str(current_time(1)) '-' num2str(current_time(2)) '-' num2str(current_time(3))  ' '  num2str(current_time(4))  ':' num2str(current_time(5)) ':'  num2str(current_time(6))]; 
                    
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-
-
-%     waitbar(i /(handles.file_number))    %process bar
     %vedio path for the 'i'th vedio
     vediopath =[handles.batch_processing_path, '\', handles.file_list(k).name];
     %%%%%%load seq vedio%%%%%%%%%%
@@ -97,16 +94,15 @@ for k=1:handles.file_number
 
 
     %%%%save the n-th frame(displayed in plot) for all batch processing seq videos
-    %readseq frame from seq file //
     
     %file name without extentions
     [~, name, ~] = fileparts(handles.file_list(k).name);
-    handles.filename = name;
-    %set current time as MAT's name
-    current_time=fix(clock);
-    current_time_string=[num2str(current_time(1)) '-' num2str(current_time(2)) '-' num2str(current_time(3))  '-'  num2str(current_time(4))  '-' num2str(current_time(5)) '-'  num2str(current_time(6))];
 
-    %mirror the matrix in central colomn
+    %%%%%Code for saving a single frame%%%%%
+    save_frame_single = readseq( handles.readerobj, handles.frame_display);
+    imwrite(uint8(save_frame_single), [jpg_path, '\', name, '.jpg']);
+    
+    %mirror the matrix in central colomnP
      xx = handles.x_radius;
      yy = handles.y_radius;
     for m=1:8
@@ -131,10 +127,7 @@ for k=1:handles.file_number
     result_output_s=[];
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-
 %%%%%%%%%% this block substitute batch processing function, so it is convenient to add 'stop' function%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        % function output = differential_batch( centrex,centrey,radius,thres,readerobj )
         %copy input values.
         centrex = x_vector;   
         centrey = y_vector;
@@ -174,15 +167,12 @@ for k=1:handles.file_number
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     %%%%%%%%%% batch processing function  end %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%       
-
-
     %first column of result
     frame_column(:,1) = 1:1:handles.nFrames-1;
     %second column of result
     time_stamp(:,1) = handles.duration_time/(handles.nFrames-0):handles.duration_time/(handles.nFrames-0):handles.duration_time;
     [a, ~]=size(time_stamp);
     time_stamp_temp=time_stamp(2:a,1); %caculate from the second
-
 
     %set current time as matrix's name
     %compose the output 

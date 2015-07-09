@@ -66,6 +66,12 @@ class SettingsTab(QtCore.QObject):
         self.csv_transfer_le = self.main_window.csv_transfer_line_edit
         self.csv_transfer_bb = self.main_window.csv_transfer_browse_button
 
+        self.local_jpg_le = self.main_window.local_jpg_line_edit
+        self.local_jpg_bb = self.main_window.local_jpg_browse_button
+
+        self.jpg_transfer_le = self.main_window.jpg_transfer_line_edit
+        self.jpg_transfer_bb = self.main_window.jpg_transfer_browse_button
+
         self.process_csv_te = self.main_window.process_csv_time_edit
         self.transfer_te = self.main_window.transfer_time_edit
         self.cleanup_age_sb = self.main_window.cleanup_age_spin_box
@@ -89,6 +95,12 @@ class SettingsTab(QtCore.QObject):
         self.csv_transfer_le.textChanged.connect(self.save_settings)
         self.csv_transfer_bb.clicked.connect(self.on_csv_transfer_browse_clicked_slot)
 
+        self.local_jpg_le.textChanged.connect(self.save_settings)
+        self.local_jpg_bb.clicked.connect(self.on_local_jpg_browse_clicked_slot)
+
+        self.jpg_transfer_le.textChanged.connect(self.save_settings)
+        self.jpg_transfer_bb.clicked.connect(self.on_jpg_transfer_browse_clicked_slot)
+
         self.process_csv_te.timeChanged.connect(self.on_process_time_edit_changed_slot)
         self.transfer_te.timeChanged.connect(self.on_transfer_time_edit_changed_slot)
         self.cleanup_age_sb.valueChanged.connect(self.save_settings)
@@ -98,11 +110,15 @@ class SettingsTab(QtCore.QObject):
         transfer_video = self.settings.value("video_transfer_path", "").toString()
         local_csv = self.settings.value("local_csv_path", "").toString()
         transfer_csv = self.settings.value("csv_transfer_path", "").toString()
+        local_jpg = self.settings.value("local_jpg_path", "").toString()
+        transfer_jpg = self.settings.value("jpg_transfer_path", "").toString()
 
         self.local_video_le.setText(local_video)
         self.video_transfer_le.setText(transfer_video)
         self.local_csv_le.setText(local_csv)
         self.csv_transfer_le.setText(transfer_csv)
+        self.local_jpg_le.setText(local_jpg)
+        self.jpg_transfer_le.setText(transfer_jpg)
 
         self.process_csv_te.setTime(QtCore.QTime.fromString(
             self.settings.value("csv_time", "12:00 PM").toString(), "h:mm AP"))
@@ -122,17 +138,22 @@ class SettingsTab(QtCore.QObject):
         transfer_video = self.video_transfer_le.text()
         local_csv = self.local_csv_le.text()
         transfer_csv = self.csv_transfer_le.text()
+        local_jpg = self.local_jpg_le.text()
+        transfer_jpg = self.jpg_transfer_le.text()
 
         self.settings.setValue("local_video_path", local_video)
         self.settings.setValue("video_transfer_path", transfer_video)
         self.settings.setValue("local_csv_path", local_csv)
         self.settings.setValue("csv_transfer_path", transfer_csv)
+        self.settings.setValue("local_jpg_path", local_jpg)
+        self.settings.setValue("jpg_transfer_path", transfer_jpg)
 
         self.settings.setValue("csv_time", self.process_csv_te.time().toString("h:mm AP"))
         self.settings.setValue("transfer_time", self.transfer_te.time().toString("h:mm AP"))
         self.settings.setValue("cleanup_age", self.cleanup_age_sb.value())
 
-        if (local_video != "") and (transfer_video != "") and (local_csv != "") and (transfer_csv != ""):
+        if (local_video != "") and (transfer_video != "") and (local_csv != "") and (transfer_csv != "") \
+                and (local_jpg != "") and (transfer_jpg != ""):
             self.settings.setValue("enabled", int(True))
         else:
             self.settings.setValue("enabled", int(False))
@@ -158,6 +179,12 @@ class SettingsTab(QtCore.QObject):
 
     def on_csv_transfer_browse_clicked_slot(self):
         self.csv_transfer_le.setText(self.get_folder_dialog_and_results())
+
+    def on_local_jpg_browse_clicked_slot(self):
+        self.local_jpg_le.setText(self.get_folder_dialog_and_results())
+
+    def on_jpg_transfer_browse_clicked_slot(self):
+        self.jpg_transfer_le.setText(self.get_folder_dialog_and_results())
 
     def get_folder_dialog_and_results(self):
         file_dialog = QtGui.QFileDialog(self.main_window)

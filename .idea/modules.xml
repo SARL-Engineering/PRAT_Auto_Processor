@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../PRAT-Transfer-Utility/.idea/PRAT-Transfer-Utility.iml" filepath="$PROJECT_DIR$/../PRAT-Transfer-Utility/.idea/PRAT-Transfer-Utility.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/PRAT_Auto_Processor.iml" filepath="$PROJECT_DIR$/.idea/PRAT_Auto_Processor.iml" />
     </modules>
   </component>

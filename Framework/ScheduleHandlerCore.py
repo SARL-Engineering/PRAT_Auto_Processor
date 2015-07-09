@@ -58,11 +58,11 @@ CRITICAL = QtGui.QSystemTrayIcon.Critical
 # QueueProcessor Class Definition
 #####################################
 class QueueProcessor(QtCore.QThread):
-
     task_done = QtCore.pyqtSignal()
     show_messagebox = QtCore.pyqtSignal(str, str, int, int)
 
-    def __init__(self, master, task_type, local_vid_path, local_csv_path, vid_transfer_path, csv_transfer_path, age):
+    def __init__(self, master, task_type, local_vid_path, local_csv_path, local_jpg_path, vid_transfer_path,
+                 csv_transfer_path, jpg_transfer_path, age):
         QtCore.QThread.__init__(self)
 
         self.master = master
@@ -71,8 +71,10 @@ class QueueProcessor(QtCore.QThread):
         self.task_type = task_type
         self.local_vid_path = str(local_vid_path)
         self.local_csv_path = str(local_csv_path)
+        self.local_jpg_path = str(local_jpg_path)
         self.vid_transfer_path = str(vid_transfer_path)
         self.csv_transfer_path = str(csv_transfer_path)
+        self.jpg_transfer_path = str(jpg_transfer_path)
         self.cleanup_age = int(age)
 
         # ########## Get the instances of the loggers ##########
@@ -97,33 +99,36 @@ class QueueProcessor(QtCore.QThread):
                     os.makedirs(self.local_csv_path)
                     self.logger.info("Local CSV output folder does not exist. Making directory.")
 
+                if not os.path.isdir(self.local_jpg_path):
+                    os.makedirs(self.local_jpg_path)
+                    self.logger.info("Local JPG output folder does not exist. Making directory.")
+
                 count = self.file_count(self.local_vid_path)
-                original_out_csv_count = self.file_count(self.local_csv_path)
 
                 if count > 0:
-                    self.logger.info("Attempting to process " + str(count) + " SEQ files. This will take some time.")
+                    self.logger.info("Attempting to process " + str(count) + " SEQ files. On an intel i7 system, " +
+                                     "this will take approximately " + str(count*6) + " minutes.")
 
                     start_time = time.clock()
 
                     matlab_engine = matlab.engine.start_matlab()
-                    matlab_engine.PRAT_Processor(self.local_vid_path, self.local_csv_path)
+                    matlab_engine.PRAT_Processor(self.local_vid_path, self.local_csv_path, self.local_jpg_path)
                     matlab_engine.quit()
                     del matlab_engine
 
                     stop_time = time.clock()
 
-                    diff_time_str = str((stop_time-start_time)/60.0)
+                    diff_time_str = str((stop_time - start_time) / 60.0)
 
                     self.logger.info("Processing completed in " + diff_time_str + " minutes.")
 
                     new_out_csv_count = self.file_count(self.local_csv_path)
-                    csv_diff = new_out_csv_count - original_out_csv_count
 
-                    if csv_diff == count:
+                    if new_out_csv_count == count:
                         self.logger.info("All SEQ files processed successfully!\n")
                     else:
                         self.logger.info("SEQ files not processed successfully!" +
-                                         " Processed " + str(count) + " SEQ files, but only " + str(csv_diff) +
+                                         " Processed " + str(count) + " SEQ files, but only " + str(new_out_csv_count) +
                                          " CSV files were created. Please check your SEQ files!\n")
                 else:
                     self.logger.info("Attempted to process SEQ files, but none exist.")
@@ -139,23 +144,34 @@ class QueueProcessor(QtCore.QThread):
             self.logger.info("##### TRANSFER TASK RUNNING #####")
             if os.path.exists(self.csv_transfer_path.split("\\")[0]):
                 if os.path.exists(self.vid_transfer_path.split("\\")[0]):
-                    if os.path.isdir(self.local_vid_path):
-                        if os.path.isdir(self.local_csv_path):
-                            if not os.path.isdir(self.csv_transfer_path):
-                                os.makedirs(self.csv_transfer_path)
-                                self.logger.info("CSV transfer folder does not exist. Making directory.")
-
-                            self.do_file_transfers()
-                            self.cleanup_old_seq_files()
-
+                    if os.path.exists(self.jpg_transfer_path.split("\\")[0]):
+                        if os.path.isdir(self.local_vid_path):
+                            if os.path.isdir(self.local_csv_path):
+                                if os.path.isdir(self.local_jpg_path):
+                                    self.do_file_transfers()
+                                    self.cleanup_old_seq_files()
+                                else:
+                                    self.logger.info(
+                                        "Attempted to transfer files, but local jpg path does not exist. Please "
+                                        + "check directory.")
+                                    self.show_messagebox.emit("File Transfer",
+                                                              "File transfer failed!\nPlease check logs!",
+                                                              CRITICAL, 60)
+                            else:
+                                self.logger.info(
+                                    "Attempted to transfer files, but local csv path does not exist. Please "
+                                    + "check directory.")
+                                self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                                          CRITICAL, 60)
                         else:
-                            self.logger.info("Attempted to transfer files, but local csv path does not exist. Please "
+                            self.logger.info("Attempted to transfer files, but local video path does not exist. Please "
                                              + "check directory.")
                             self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                                       CRITICAL, 60)
                     else:
-                        self.logger.info("Attempted to transfer files, but local video path does not exist. Please "
-                                         + "check directory.")
+                        self.logger.info(
+                            "Remote jpg transfer path not found and could not be reconnected. Please check for"
+                            + " a network outage!")
                         self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                                   CRITICAL, 60)
                 else:
@@ -172,38 +188,42 @@ class QueueProcessor(QtCore.QThread):
         self.task_done.emit()
 
     def do_file_transfers(self):
-        seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
+        sets = self.get_seq_csv_jpg_sets(self.local_vid_path, self.local_csv_path, self.local_jpg_path)
 
-        if seq_csv_pairs:
-
-            self.logger.info("Attempting to transfer files. This will take some time.")
+        if sets:
+            self.logger.info("Attempting to transfer files. This will take some time.\n")
             start_time = time.clock()
 
-            for seq_path, csv_path in seq_csv_pairs:
-
+            for seq_path, csv_path, jpg_path in sets:
                 seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
                 seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
-                    str(seq_mod_date.year)
+                                    str(seq_mod_date.year)
 
                 seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
                 seq_full_transfer_path = seq_full_folder_path + "\\" + seq_path.split("\\")[-1]
 
+                if not os.path.isdir(seq_full_folder_path):
+                     os.makedirs(seq_full_folder_path)
+
                 csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1]
 
-                if not os.path.isdir(seq_full_folder_path):
-                    os.makedirs(seq_full_folder_path)
+                jpg_full_transfer_path = self.jpg_transfer_path + "\\" + jpg_path.split("\\")[-1]
 
                 self.logger.info("Transferring SEQ file \"" + seq_path + "\" to \"" + seq_full_transfer_path +
                                  "\".")
+
+                # Transfer section for seq file
                 if os.path.isfile(seq_full_transfer_path):
                     try:
                         os.unlink(seq_full_transfer_path)
                         shutil.copy(seq_path, seq_full_transfer_path)
                     except:
-                        self.logger.info("Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+                        self.logger.info(
+                            "Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
                 else:
                     shutil.copy(seq_path, seq_full_transfer_path)
 
+                # Transfer section for csv file
                 self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + csv_full_transfer_path +
                                  "\".")
                 if os.path.isfile(csv_full_transfer_path):
@@ -211,11 +231,27 @@ class QueueProcessor(QtCore.QThread):
                         os.unlink(csv_full_transfer_path)
                         shutil.copy(csv_path, csv_full_transfer_path)
                     except:
-                        self.logger.info("Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+                        self.logger.info(
+                            "Insufficient Permissions! Could not transfer to \"" + csv_full_transfer_path + "\"!")
                 else:
                     shutil.copy(csv_path, csv_full_transfer_path)
 
-                if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path):
+                # Transfer section for jpg file
+                self.logger.info("Transferring JPG file \"" + jpg_path + "\" to \"" + jpg_full_transfer_path +
+                                 "\".\n")
+                if os.path.isfile(jpg_full_transfer_path):
+                    try:
+                        os.unlink(jpg_full_transfer_path)
+                        shutil.copy(jpg_path, jpg_full_transfer_path)
+                    except:
+                        self.logger.info(
+                            "Insufficient Permissions! Could not transfer to \"" + jpg_full_transfer_path + "\"!")
+                else:
+                    shutil.copy(jpg_path, jpg_full_transfer_path)
+
+                # Deletion of local seq, csv, and jpg if transferred
+                if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path) and \
+                        os.path.isfile(jpg_full_transfer_path):
                     try:
                         os.unlink(seq_path)
                         self.logger.info("Deleted SEQ file \"" + seq_path + "\"")
@@ -224,26 +260,113 @@ class QueueProcessor(QtCore.QThread):
 
                     try:
                         os.unlink(csv_path)
-                        self.logger.info("Deleted CSV file \"" + csv_path + "\".\n")
+                        self.logger.info("Deleted CSV file \"" + csv_path + "\".")
                     except:
                         self.logger.info("Failed to delete CSV file \"" + csv_path + "\"!!!!!")
 
+                    try:
+                        os.unlink(jpg_path)
+                        self.logger.info("Deleted JPG file \"" + jpg_path + "\".\n")
+                    except:
+                        self.logger.info("Failed to delete JPG file \"" + jpg_path + "\"!!!!!")
+
                 elif not os.path.isfile(seq_full_transfer_path):
-                    self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
-                                    + "CSV will not be deleted. Please check permissions.")
+                    self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ, "
+                                    + "CSV, and JPG will not be deleted. Please check permissions.")
                     self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                               CRITICAL, 60)
                 elif not os.path.isfile(csv_full_transfer_path):
-                    self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
-                                    + "CSV will not be deleted. Please check permissions.")
+                    self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ, "
+                                    + "CSV, and JPG will not be deleted. Please check permissions.")
+                    self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+                                              CRITICAL, 60)
+                elif not os.path.isfile(jpg_full_transfer_path):
+                    self.logger.log("\"" + jpg_full_transfer_path + "\" does not exist. File transfer failed! SEQ, "
+                                    + "CSV, and JPG will not be deleted. Please check permissions.")
                     self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
                                               CRITICAL, 60)
 
             stop_time = time.clock()
-            diff_time_str = str((stop_time-start_time)/60.0)
+            diff_time_str = str((stop_time - start_time) / 60.0)
             self.logger.info("Transferring completed in " + diff_time_str + " minutes.\n")
         else:
             self.logger.info("No files to transfer.\n")
+
+
+        # seq_csv_pairs = self.get_seq_csv_pairs(self.local_vid_path, self.local_csv_path)
+        #
+        # if seq_csv_pairs:
+        #
+        #     self.logger.info("Attempting to transfer files. This will take some time.")
+        #     start_time = time.clock()
+        #
+        #     for seq_path, csv_path in seq_csv_pairs:
+        #
+        #         seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
+        #         seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
+        #                             str(seq_mod_date.year)
+        #
+        #         seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
+        #         seq_full_transfer_path = seq_full_folder_path + "\\" + seq_path.split("\\")[-1]
+        #
+        #         csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1]
+        #
+        #         if not os.path.isdir(seq_full_folder_path):
+        #             os.makedirs(seq_full_folder_path)
+        #
+        #         self.logger.info("Transferring SEQ file \"" + seq_path + "\" to \"" + seq_full_transfer_path +
+        #                          "\".")
+        #         if os.path.isfile(seq_full_transfer_path):
+        #             try:
+        #                 os.unlink(seq_full_transfer_path)
+        #                 shutil.copy(seq_path, seq_full_transfer_path)
+        #             except:
+        #                 self.logger.info(
+        #                     "Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+        #         else:
+        #             shutil.copy(seq_path, seq_full_transfer_path)
+        #
+        #         self.logger.info("Transferring CSV file \"" + csv_path + "\" to \"" + csv_full_transfer_path +
+        #                          "\".")
+        #         if os.path.isfile(csv_full_transfer_path):
+        #             try:
+        #                 os.unlink(csv_full_transfer_path)
+        #                 shutil.copy(csv_path, csv_full_transfer_path)
+        #             except:
+        #                 self.logger.info(
+        #                     "Insufficient Permissions! Could not transfer to \"" + seq_full_transfer_path + "\"!")
+        #         else:
+        #             shutil.copy(csv_path, csv_full_transfer_path)
+        #
+        #         if os.path.isfile(seq_full_transfer_path) and os.path.isfile(csv_full_transfer_path):
+        #             try:
+        #                 os.unlink(seq_path)
+        #                 self.logger.info("Deleted SEQ file \"" + seq_path + "\"")
+        #             except:
+        #                 self.logger.info("Failed to delete SEQ file \"" + seq_path + "\"!!!!!")
+        #
+        #             try:
+        #                 os.unlink(csv_path)
+        #                 self.logger.info("Deleted CSV file \"" + csv_path + "\".\n")
+        #             except:
+        #                 self.logger.info("Failed to delete CSV file \"" + csv_path + "\"!!!!!")
+        #
+        #         elif not os.path.isfile(seq_full_transfer_path):
+        #             self.logger.log("\"" + seq_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
+        #                             + "CSV will not be deleted. Please check permissions.")
+        #             self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+        #                                       CRITICAL, 60)
+        #         elif not os.path.isfile(csv_full_transfer_path):
+        #             self.logger.log("\"" + csv_full_transfer_path + "\" does not exist. File transfer failed! SEQ and "
+        #                             + "CSV will not be deleted. Please check permissions.")
+        #             self.show_messagebox.emit("File Transfer", "File transfer failed!\nPlease check logs!",
+        #                                       CRITICAL, 60)
+        #
+        #     stop_time = time.clock()
+        #     diff_time_str = str((stop_time - start_time) / 60.0)
+        #     self.logger.info("Transferring completed in " + diff_time_str + " minutes.\n")
+        # else:
+        #     self.logger.info("No files to transfer.\n")
 
     def cleanup_old_seq_files(self):
         seq_names_paths_and_age = []
@@ -285,7 +408,7 @@ class QueueProcessor(QtCore.QThread):
                 if os.path.isfile(full_path):
                     csv_list.append([file_or_folder[:-4], full_path])
             except:
-                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+                self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
 
         for file_or_folder in os.listdir(local_seq):
             full_path = os.path.join(local_seq, file_or_folder).replace('/', "\\")
@@ -295,19 +418,54 @@ class QueueProcessor(QtCore.QThread):
                         if csv_name == file_or_folder[:-4]:
                             seq_csv_pairs.append([full_path, csv_path])
             except:
-                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+                self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
 
         return seq_csv_pairs
+
+    def get_seq_csv_jpg_sets(self, local_seq, local_csv, local_jpg):
+        csv_list = []
+        jpg_list = []
+        sets = []
+
+        for file_or_folder in os.listdir(local_csv):
+            full_path = os.path.join(local_csv, file_or_folder).replace('/', "\\")
+            try:
+                if os.path.isfile(full_path):
+                    csv_list.append([file_or_folder[:-4], full_path])
+            except:
+                self.logger.info("Local csv directory exists, but cannot be accessed.\nPlease check permissions.")
+
+        for file_or_folder in os.listdir(local_jpg):
+            full_path = os.path.join(local_jpg, file_or_folder).replace('/', "\\")
+            try:
+                if os.path.isfile(full_path):
+                    jpg_list.append([file_or_folder[:-4], full_path])
+            except:
+                self.logger.info("Local jpg directory exists, but cannot be accessed.\nPlease check permissions.")
+
+        for file_or_folder in os.listdir(local_seq):
+            full_path = os.path.join(local_seq, file_or_folder).replace('/', "\\")
+            try:
+                if os.path.isfile(full_path):
+                    for csv_name, csv_path in csv_list:
+                        if csv_name == file_or_folder[:-4]:
+                            for jpg_name, jpg_path in jpg_list:
+                                if jpg_name == csv_name:
+                                    sets.append([full_path, csv_path, jpg_path])
+            except:
+                self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+
+        return sets
 
     def file_count(self, path):
         count = 0
         for file_or_folder in os.listdir(path):
-                full_path = os.path.join(path, file_or_folder)
-                try:
-                    if os.path.isfile(full_path):
-                        count += 1
-                except:
-                    self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
+            full_path = os.path.join(path, file_or_folder)
+            try:
+                if os.path.isfile(full_path):
+                    count += 1
+            except:
+                self.logger.info("Local video directory exists, but cannot be accessed.\nPlease check permissions.")
         return count
 
     @staticmethod
@@ -322,6 +480,7 @@ class QueueProcessor(QtCore.QThread):
                     process.wait(timeout=3)
             except:
                 pass
+
 
 #####################################
 # ScheduleHandler Class Definition
@@ -410,19 +569,23 @@ class ScheduleHandler(QtCore.QThread):
                 if not self.processing_thread and not self.processing_done:
                     local_vid = self.settings.value("local_video_path").toString()
                     local_csv = self.settings.value("local_csv_path").toString()
+                    local_jpg = self.settings.value("local_jpg_path").toString()
 
-                    self.processing_thread = QueueProcessor(self, PROCESS_TASK, local_vid, local_csv, "", "", 0)
+                    self.processing_thread = QueueProcessor(self, PROCESS_TASK, local_vid, local_csv, local_jpg,
+                                                            "", "", "", 0)
 
             if (transfer_time.hour() == current_time.hour()) and (transfer_time.minute() == current_time.minute()):
                 if not self.transfer_thread and not self.transfer_done:
                     local_vid = self.settings.value("local_video_path").toString()
                     local_csv = self.settings.value("local_csv_path").toString()
+                    local_jpg = self.settings.value("local_jpg_path").toString()
                     transfer_vid = self.settings.value("video_transfer_path").toString()
                     transfer_csv = self.settings.value("csv_transfer_path").toString()
+                    transfer_jpg = self.settings.value("jpg_transfer_path").toString()
                     age = self.settings.value("cleanup_age").toInt()[0]
 
-                    self.transfer_thread = QueueProcessor(self, TRANSFER_TASK, local_vid, local_csv, transfer_vid,
-                                                          transfer_csv, age)
+                    self.transfer_thread = QueueProcessor(self, TRANSFER_TASK, local_vid, local_csv, local_jpg,
+                                                          transfer_vid, transfer_csv, transfer_jpg, age)
 
     def on_processing_done_slot(self):
         self.processing_done = True
