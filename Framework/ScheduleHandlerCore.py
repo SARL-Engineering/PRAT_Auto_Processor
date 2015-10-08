@@ -197,7 +197,7 @@ class QueueProcessor(QtCore.QThread):
             for seq_path, csv_path, jpg_path in sets:
                 seq_mod_date = datetime.datetime.fromtimestamp(os.path.getmtime(seq_path))
                 seq_folder_string = str(seq_mod_date.month) + "-" + str(seq_mod_date.day) + "-" + \
-                                    str(seq_mod_date.year)
+                    str(seq_mod_date.year)
 
                 seq_full_folder_path = self.vid_transfer_path + "\\" + seq_folder_string
                 seq_full_transfer_path = seq_full_folder_path + "\\" + seq_path.split("\\")[-1]
@@ -205,8 +205,8 @@ class QueueProcessor(QtCore.QThread):
                 if not os.path.isdir(seq_full_folder_path):
                      os.makedirs(seq_full_folder_path)
 
-                csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1][:-4] + " - " + \
-                                         str(seq_mod_date.hour) + ":" + str(seq_mod_date.minute) + ".csv"
+                csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1][:-4] + "_" + \
+                    str(seq_mod_date.hour) + "-" + str(seq_mod_date.minute) + ".csv"
 
                 jpg_full_transfer_path = self.jpg_transfer_path + "\\" + jpg_path.split("\\")[-1]
 
