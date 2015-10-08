@@ -205,7 +205,8 @@ class QueueProcessor(QtCore.QThread):
                 if not os.path.isdir(seq_full_folder_path):
                      os.makedirs(seq_full_folder_path)
 
-                csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1]
+                csv_full_transfer_path = self.csv_transfer_path + "\\" + csv_path.split("\\")[-1][:-4] + " - " + \
+                                         str(seq_mod_date.hour) + ":" + str(seq_mod_date.minute) + ".csv"
 
                 jpg_full_transfer_path = self.jpg_transfer_path + "\\" + jpg_path.split("\\")[-1]
 
